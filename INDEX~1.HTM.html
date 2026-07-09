@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Universal Media Manager</title>
+<meta name="description" content="Manage and download media from authorized sources: your own files, Creative Commons, public domain, and platforms that permit downloads." />
+
+<!-- ============================================================
+     UNIVERSAL MEDIA MANAGER
+     A media manager UI limited to AUTHORIZED sources only:
+       - Files you upload/own
+       - Creative Commons / public-domain content
+       - Services that explicitly permit downloading via official APIs
+     This front end is a fully working DEMO. Networking calls to
+     "analyze" or "download" real media are represented by clearly
+     marked stub functions in js/analyze.js and js/download.js,
+     meant to be wired up to an authorized/official API of your
+     choosing (see README.md).
+     ============================================================ -->
+
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>%F0%9F%8E%AC</text></svg>" />
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+<!-- Skip link for keyboard / screen reader users -->
+<a class="skip-link" href="#main-content">Skip to main content</a>
+
+<!-- Animated gradient backdrop (decorative) -->
+<div class="bg-decor" aria-hidden="true">
+  <span class="orb orb-1"></span>
+  <span class="orb orb-2"></span>
+  <span class="orb orb-3"></span>
+</div>
+
+<!-- ======================= NAVBAR ======================= -->
+<header class="navbar glass" role="banner">
+  <div class="navbar-inner">
+    <a href="#home" class="brand" aria-label="Universal Media Manager home">
+      <span class="brand-icon" aria-hidden="true">🎬</span>
+      <span class="brand-text">Universal<strong>Media</strong>Manager</span>
+    </a>
+
+    <nav class="nav-links" id="nav-links" aria-label="Primary">
+      <button class="nav-link active" data-page="home" aria-current="page">Home</button>
+      <button class="nav-link" data-page="history">History</button>
+      <button class="nav-link" data-page="favorites">Favorites</button>
+      <button class="nav-link" data-page="settings">Settings</button>
+      <button class="nav-link admin-only hidden" data-page="admin">Admin</button>
+    </nav>
+
+    <div class="nav-actions">
+      <label class="lang-select-wrap" for="langSelect">
+        <span class="visually-hidden">Language</span>
+        <select id="langSelect" class="lang-select" aria-label="Select language">
+          <option value="en">EN</option>
+          <option value="es">ES</option>
+          <option value="fr">FR</option>
+          <option value="de">DE</option>
+        </select>
+      </label>
+
+      <button id="themeToggle" class="icon-btn" type="button" aria-label="Toggle dark mode" aria-pressed="false">
+        <span class="theme-icon" aria-hidden="true">🌙</span>
+      </button>
+
+      <div id="authArea" class="auth-area">
+        <button class="btn btn-ghost" id="loginBtn" type="button">Log In</button>
+        <button class="btn btn-primary" id="registerBtn" type="button">Sign Up</button>
+      </div>
+
+      <div id="userMenu" class="user-menu hidden">
+        <button class="user-menu-btn" id="userMenuBtn" type="button" aria-haspopup="true" aria-expanded="false">
+          <span class="avatar" id="userAvatar">U</span>
+          <span class="user-name" id="userNameLabel">User</span>
+          <span aria-hidden="true">▾</span>
+        </button>
+        <div class="user-menu-dropdown" id="userMenuDropdown" role="menu">
+          <button role="menuitem" data-page="profile">👤 Profile</button>
+          <button role="menuitem" data-page="settings">⚙️ Settings</button>
+          <button role="menuitem" class="admin-only hidden" data-page="admin">🛡️ Admin Panel</button>
+          <button role="menuitem" id="logoutBtn">🚪 Log Out</button>
+        </div>
+      </div>
+
+      <button id="navToggle" class="icon-btn nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-links">
+        <span aria-hidden="true">☰</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="main-content" role="main">
+
+<!-- ======================= HOME PAGE ======================= -->
+<section id="page-home" class="page active" aria-labelledby="hero-title">
+
+  <!-- Hero -->
+  <div class="hero">
+    <p class="eyebrow">Authorized Media Only • Own Files • Creative Commons • Public Domain</p>
+    <h1 id="hero-title">Manage your media,<br><span class="gradient-text">the right way.</span></h1>
+    <p class="hero-sub">
+      Analyze, preview, and download media exclusively from sources you're permitted to use —
+      your own uploads, Creative Commons &amp; public-domain libraries, and services with official,
+      user-authorized export APIs.
+    </p>
+
+    <!-- URL Analyzer -->
+    <form id="analyzeForm" class="analyzer glass" autocomplete="off">
+      <label for="mediaUrl" class="visually-hidden">Paste a media URL from an authorized source</label>
+      <div class="analyzer-row">
+        <span class="analyzer-icon" aria-hidden="true">🔗</span>
+        <input
+          type="url"
+          id="mediaUrl"
+          name="mediaUrl"
+          class="analyzer-input"
+          placeholder="Paste a media URL (e.g. Creative Commons / public domain / your own hosted file)"
+          aria-describedby="urlHint"
+          required
+        />
+        <button type="submit" class="btn btn-primary analyzer-btn" id="analyzeBtn">
+          <span class="btn-spinner hidden" aria-hidden="true"></span>
+          <span>Analyze</span>
+        </button>
+      </div>
+      <p id="urlHint" class="analyzer-hint">
+        We only process links from authorized sources. See our <button type="button" class="link-btn" id="policyLink">Content Policy</button>.
+      </p>
+    </form>
+
+    <!-- Drag & Drop / Upload -->
+    <div id="dropZone" class="dropzone glass" tabindex="0" role="button"
+         aria-label="Drag and drop a file here, or press Enter to browse and upload your own media file">
+      <input type="file" id="fileInput" class="visually-hidden" accept="video/*,audio/*,image/*" />
+      <div class="dropzone-content">
+        <span class="dropzone-icon" aria-hidden="true">📁</span>
+        <p><strong>Drag &amp; drop</strong> your own file here, or <button type="button" class="link-btn" id="browseBtn">browse</button></p>
+        <p class="muted small">Supports video, audio, and image files you own the rights to.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preview Panel (populated after Analyze) -->
+  <section id="previewPanel" class="preview-panel glass hidden" aria-live="polite" aria-labelledby="previewTitle">
+    <div class="preview-header">
+      <h2 id="previewTitle">Media Preview</h2>
+      <button class="icon-btn" id="closePreview" aria-label="Close preview">✕</button>
+    </div>
+    <div class="preview-body">
+      <div class="preview-thumb-wrap">
+        <img id="previewThumb" class="preview-thumb" loading="lazy" alt="" />
+        <span id="previewDuration" class="duration-badge">00:00</span>
+      </div>
+      <div class="preview-meta">
+        <h3 id="previewMediaTitle">—</h3>
+        <p class="preview-author">By <span id="previewAuthor">—</span></p>
+        <ul class="meta-list">
+          <li><strong>Duration:</strong> <span id="previewDurationText">—</span></li>
+          <li><strong>File size:</strong> <span id="previewSize">—</span></li>
+          <li><strong>Source license:</strong> <span id="previewLicense">—</span></li>
+        </ul>
+
+        <div class="format-group">
+          <span class="format-label" id="qualityLabel">Video Quality</span>
+          <div class="chip-group" role="radiogroup" aria-labelledby="qualityLabel" id="qualityChips">
+            <button class="chip active" role="radio" aria-checked="true" data-quality="original">Original</button>
+            <button class="chip" role="radio" aria-checked="false" data-quality="1080p">1080p</button>
+            <button class="chip" role="radio" aria-checked="false" data-quality="720p">720p</button>
+            <button class="chip" role="radio" aria-checked="false" data-quality="480p">480p</button>
+            <button class="chip" role="radio" aria-checked="false" data-quality="360p">360p</button>
+            <button class="chip" role="radio" aria-checked="false" data-quality="240p">240p</button>
+            <button class="chip" role="radio" aria-checked="false" data-quality="144p">144p</button>
+          </div>
+        </div>
+
+        <div class="format-group">
+          <span class="format-label" id="audioLabel">Audio Format</span>
+          <div class="chip-group" role="radiogroup" aria-labelledby="audioLabel" id="audioChips">
+            <button class="chip active" role="radio" aria-checked="true" data-audio="mp3">MP3</button>
+            <button class="chip" role="radio" aria-checked="false" data-audio="m4a">M4A</button>
+            <button class="chip" role="radio" aria-checked="false" data-audio="wav">WAV</button>
+            <button class="chip" role="radio" aria-checked="false" data-audio="aac">AAC</button>
+          </div>
+        </div>
+
+        <div class="preview-actions">
+          <button class="btn btn-primary btn-lg" id="startDownloadBtn">⬇ Download</button>
+          <button class="btn btn-ghost" id="favoriteFromPreview">☆ Save to Favorites</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Active Downloads -->
+  <section id="downloadManager" class="download-manager hidden" aria-live="polite" aria-labelledby="dmTitle">
+    <h2 id="dmTitle">Active Downloads</h2>
+    <ul id="downloadList" class="download-list"></ul>
+  </section>
+
+  <!-- Recently Downloaded -->
+  <section class="recent-section" aria-labelledby="recentTitle">
+    <div class="section-heading">
+      <h2 id="recentTitle">Recently Downloaded</h2>
+      <button class="link-btn" data-page="history">View all →</button>
+    </div>
+    <div id="recentGrid" class="card-grid">
+      <p class="empty-state">Nothing here yet — analyze a link or upload a file to get started.</p>
+    </div>
+  </section>
+</section>
+
+<!-- ======================= HISTORY PAGE ======================= -->
+<section id="page-history" class="page" aria-labelledby="historyTitle">
+  <div class="section-heading">
+    <h2 id="historyTitle">Download History</h2>
+  </div>
+
+  <div class="toolbar glass">
+    <label class="visually-hidden" for="historySearch">Search history</label>
+    <input type="search" id="historySearch" class="toolbar-input" placeholder="Search by title or author…" />
+
+    <label class="visually-hidden" for="historyFilter">Filter</label>
+    <select id="historyFilter" class="toolbar-select" aria-label="Filter downloads">
+      <option value="all">All types</option>
+      <option value="video">Video</option>
+      <option value="audio">Audio</option>
+      <option value="image">Image</option>
+    </select>
+
+    <label class="visually-hidden" for="historySort">Sort</label>
+    <select id="historySort" class="toolbar-select" aria-label="Sort downloads">
+      <option value="newest">Newest first</option>
+      <option value="oldest">Oldest first</option>
+      <option value="name">Name (A–Z)</option>
+      <option value="size">File size</option>
+    </select>
+  </div>
+
+  <div id="historyGrid" class="card-grid"></div>
+</section>
+
+<!-- ======================= FAVORITES PAGE ======================= -->
+<section id="page-favorites" class="page" aria-labelledby="favTitle">
+  <div class="section-heading"><h2 id="favTitle">Favorites</h2></div>
+  <div id="favoritesGrid" class="card-grid"></div>
+</section>
+
+<!-- ======================= PROFILE PAGE ======================= -->
+<section id="page-profile" class="page" aria-labelledby="profileTitle">
+  <div class="section-heading"><h2 id="profileTitle">Your Profile</h2></div>
+  <form id="profileForm" class="settings-card glass">
+    <div class="profile-avatar-row">
+      <span class="avatar avatar-lg" id="profileAvatarLg">U</span>
+      <div>
+        <label for="profileName">Display name</label>
+        <input type="text" id="profileName" maxlength="60" />
+      </div>
+    </div>
+    <label for="profileEmail">Email</label>
+    <input type="email" id="profileEmail" />
+    <label for="profileBio">Bio</label>
+    <textarea id="profileBio" maxlength="240" rows="3"></textarea>
+    <button type="submit" class="btn btn-primary">Save Profile</button>
+    <p class="form-status" id="profileStatus" role="status"></p>
+  </form>
+</section>
+
+<!-- ======================= SETTINGS PAGE ======================= -->
+<section id="page-settings" class="page" aria-labelledby="settingsTitle">
+  <div class="section-heading"><h2 id="settingsTitle">Settings</h2></div>
+  <div class="settings-card glass">
+    <div class="settings-row">
+      <div>
+        <h3>Appearance</h3>
+        <p class="muted small">Choose light or dark mode.</p>
+      </div>
+      <button class="btn btn-ghost" id="settingsThemeToggle">Toggle Theme</button>
+    </div>
+    <div class="settings-row">
+      <div>
+        <h3>Language</h3>
+        <p class="muted small">Interface language.</p>
+      </div>
+      <select id="settingsLang" class="toolbar-select" aria-label="Interface language">
+        <option value="en">English</option>
+        <option value="es">Español</option>
+        <option value="fr">Français</option>
+        <option value="de">Deutsch</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div>
+        <h3>Default download quality</h3>
+        <p class="muted small">Used when a preferred quality isn't specified.</p>
+      </div>
+      <select id="settingsQuality" class="toolbar-select" aria-label="Default quality">
+        <option>Original</option><option>1080p</option><option>720p</option>
+        <option>480p</option><option>360p</option><option>240p</option><option>144p</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div>
+        <h3>Notifications</h3>
+        <p class="muted small">Notify me when a download completes.</p>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="settingsNotify" checked />
+        <span class="switch-track" aria-hidden="true"></span>
+      </label>
+    </div>
+    <div class="settings-row">
+      <div>
+        <h3>Clear local data</h3>
+        <p class="muted small">Removes history, favorites, and preferences from this browser.</p>
+      </div>
+      <button class="btn btn-danger" id="clearDataBtn">Clear Data</button>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= ADMIN PAGE ======================= -->
+<section id="page-admin" class="page" aria-labelledby="adminTitle">
+  <div class="section-heading"><h2 id="adminTitle">Admin Dashboard</h2></div>
+
+  <div class="stat-grid">
+    <div class="stat-card glass"><span class="stat-value" id="statUsers">0</span><span class="stat-label">Users</span></div>
+    <div class="stat-card glass"><span class="stat-value" id="statDownloads">0</span><span class="stat-label">Downloads</span></div>
+    <div class="stat-card glass"><span class="stat-value" id="statStorage">0 GB</span><span class="stat-label">Storage Used</span></div>
+    <div class="stat-card glass"><span class="stat-value" id="statActive">0</span><span class="stat-label">Active Sessions</span></div>
+  </div>
+
+  <div class="admin-grid">
+    <div class="admin-panel glass">
+      <h3>User Management</h3>
+      <table class="data-table" id="userTable">
+        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="admin-panel glass">
+      <h3>Analytics</h3>
+      <div id="analyticsChart" class="bar-chart" aria-label="Downloads per day, last 7 days" role="img"></div>
+    </div>
+
+    <div class="admin-panel glass admin-panel-wide">
+      <h3>System Logs</h3>
+      <table class="data-table" id="logTable">
+        <thead><tr><th>Time</th><th>Level</th><th>Event</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ======================= AUTH MODALS ======================= -->
+<div id="modalBackdrop" class="modal-backdrop hidden"></div>
+
+<div id="loginModal" class="modal glass hidden" role="dialog" aria-modal="true" aria-labelledby="loginModalTitle">
+  <button class="icon-btn modal-close" data-close-modal aria-label="Close">✕</button>
+  <h2 id="loginModalTitle">Log In</h2>
+  <form id="loginForm" novalidate>
+    <label for="loginEmail">Email</label>
+    <input type="email" id="loginEmail" required autocomplete="email" />
+    <label for="loginPassword">Password</label>
+    <input type="password" id="loginPassword" required autocomplete="current-password" minlength="6" />
+    <p class="form-status" id="loginStatus" role="alert"></p>
+    <button type="submit" class="btn btn-primary btn-block">Log In</button>
+  </form>
+  <p class="modal-switch">No account? <button type="button" class="link-btn" id="switchToRegister">Sign up</button></p>
+  <p class="muted small">Demo tip: use <code>admin@umm.app</code> to preview the admin panel.</p>
+</div>
+
+<div id="registerModal" class="modal glass hidden" role="dialog" aria-modal="true" aria-labelledby="registerModalTitle">
+  <button class="icon-btn modal-close" data-close-modal aria-label="Close">✕</button>
+  <h2 id="registerModalTitle">Create Account</h2>
+  <form id="registerForm" novalidate>
+    <label for="registerName">Name</label>
+    <input type="text" id="registerName" required maxlength="60" autocomplete="name" />
+    <label for="registerEmail">Email</label>
+    <input type="email" id="registerEmail" required autocomplete="email" />
+    <label for="registerPassword">Password</label>
+    <input type="password" id="registerPassword" required minlength="6" autocomplete="new-password" />
+    <p class="form-status" id="registerStatus" role="alert"></p>
+    <button type="submit" class="btn btn-primary btn-block">Create Account</button>
+  </form>
+  <p class="modal-switch">Already have an account? <button type="button" class="link-btn" id="switchToLogin">Log in</button></p>
+</div>
+
+<div id="policyModal" class="modal glass hidden" role="dialog" aria-modal="true" aria-labelledby="policyModalTitle">
+  <button class="icon-btn modal-close" data-close-modal aria-label="Close">✕</button>
+  <h2 id="policyModalTitle">Content Policy</h2>
+  <div class="policy-body">
+    <p>Universal Media Manager only analyzes and downloads media from <strong>authorized sources</strong>:</p>
+    <ul>
+      <li>Files you upload and personally own or have rights to.</li>
+      <li>Creative Commons–licensed content, with license shown before download.</li>
+      <li>Public-domain media.</li>
+      <li>Platforms that provide an official, user-authorized export/download API.</li>
+    </ul>
+    <p>Links to platforms that don't permit downloading are rejected during analysis. See <code>js/analyze.js</code> for the integration point where authorized API calls belong.</p>
+  </div>
+</div>
+
+<!-- Toast notifications -->
+<div id="toastContainer" class="toast-container" aria-live="assertive" aria-atomic="true"></div>
+
+<footer class="site-footer">
+  <p>© <span id="year"></span> Universal Media Manager — Built for authorized media management only.</p>
+</footer>
+
+<!-- ======================= SCRIPTS ======================= -->
+<script src="js/security.js" defer></script>
+<script src="js/i18n.js" defer></script>
+<script src="js/theme.js" defer></script>
+<script src="js/auth.js" defer></script>
+<script src="js/upload.js" defer></script>
+<script src="js/analyze.js" defer></script>
+<script src="js/download.js" defer></script>
+<script src="js/history.js" defer></script>
+<script src="js/admin.js" defer></script>
+<script src="js/app.js" defer></script>
+</body>
+</html>
