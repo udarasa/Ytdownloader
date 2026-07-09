@@ -1,0 +1,1959 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Universal Media Manager</title>
+<meta name="description" content="Manage and download media from authorized sources: your own files, Creative Commons, public domain, and platforms that permit downloads." />
+
+<!-- ============================================================
+     UNIVERSAL MEDIA MANAGER
+     A media manager UI limited to AUTHORIZED sources only:
+       - Files you upload/own
+       - Creative Commons / public-domain content
+       - Services that explicitly permit downloading via official APIs
+     This front end is a fully working DEMO. Networking calls to
+     "analyze" or "download" real media are represented by clearly
+     marked stub functions in js/analyze.js and js/download.js,
+     meant to be wired up to an authorized/official API of your
+     choosing (see README.md).
+     ============================================================ -->
+
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>%F0%9F%8E%AC</text></svg>" />
+<style>
+/* ============================================================
+   UNIVERSAL MEDIA MANAGER — styles.css
+   Modern glassmorphism UI, light/dark theming via CSS variables,
+   animated gradient background, full responsive layout.
+   ============================================================ */
+
+/* ---------- Design tokens ---------- */
+:root{
+  --bg-1:#eef2ff;
+  --bg-2:#f5f3ff;
+  --text-1:#161320;
+  --text-2:#524d63;
+  --glass-bg:rgba(255,255,255,0.55);
+  --glass-border:rgba(255,255,255,0.65);
+  --glass-shadow:0 8px 32px rgba(31,25,68,0.12);
+  --accent-1:#7c5cff;
+  --accent-2:#ff5cae;
+  --accent-3:#5ce1ff;
+  --success:#22c55e;
+  --danger:#ef4444;
+  --warning:#f59e0b;
+  --radius-sm:10px;
+  --radius-md:16px;
+  --radius-lg:24px;
+  --nav-h:72px;
+  --transition:200ms cubic-bezier(.4,0,.2,1);
+}
+
+[data-theme="dark"]{
+  --bg-1:#0e0b1a;
+  --bg-2:#161129;
+  --text-1:#f2f0fa;
+  --text-2:#b3adc9;
+  --glass-bg:rgba(24,20,40,0.55);
+  --glass-border:rgba(255,255,255,0.12);
+  --glass-shadow:0 8px 32px rgba(0,0,0,0.45);
+}
+
+*,*::before,*::after{ box-sizing:border-box; }
+html{ scroll-behavior:smooth; }
+body{
+  margin:0;
+  min-height:100vh;
+  font-family:'Segoe UI',Inter,system-ui,-apple-system,Roboto,sans-serif;
+  color:var(--text-1);
+  background:linear-gradient(160deg,var(--bg-1),var(--bg-2));
+  transition:background var(--transition),color var(--transition);
+  overflow-x:hidden;
+}
+
+h1,h2,h3{ line-height:1.15; margin:0 0 .5rem; }
+p{ margin:0 0 .75rem; color:var(--text-2); }
+ul{ margin:0; padding:0; list-style:none; }
+button{ font-family:inherit; cursor:pointer; }
+input,select,textarea{ font-family:inherit; }
+img{ max-width:100%; display:block; }
+
+/* ---------- Accessibility helpers ---------- */
+.visually-hidden{
+  position:absolute !important;
+  width:1px;height:1px;
+  padding:0;margin:-1px;
+  overflow:hidden;
+  clip:rect(0,0,0,0);
+  white-space:nowrap;border:0;
+}
+.skip-link{
+  position:absolute; left:-9999px; top:0;
+  background:var(--accent-1); color:#fff;
+  padding:.75rem 1.25rem; border-radius:0 0 8px 0; z-index:999;
+}
+.skip-link:focus{ left:0; }
+:focus-visible{ outline:3px solid var(--accent-1); outline-offset:2px; }
+.hidden{ display:none !important; }
+
+/* ---------- Animated gradient background decor ---------- */
+.bg-decor{ position:fixed; inset:0; z-index:-1; overflow:hidden; }
+.orb{
+  position:absolute; border-radius:50%; filter:blur(70px); opacity:.55;
+  animation:float 16s ease-in-out infinite;
+}
+.orb-1{ width:420px;height:420px; background:var(--accent-1); top:-120px; left:-100px; }
+.orb-2{ width:380px;height:380px; background:var(--accent-2); bottom:-140px; right:-80px; animation-delay:-5s; }
+.orb-3{ width:300px;height:300px; background:var(--accent-3); top:40%; left:60%; animation-delay:-9s; }
+@keyframes float{
+  0%,100%{ transform:translate(0,0) scale(1); }
+  50%{ transform:translate(30px,-40px) scale(1.08); }
+}
+@media (prefers-reduced-motion:reduce){
+  .orb{ animation:none; }
+  html{ scroll-behavior:auto; }
+}
+
+/* ---------- Glassmorphism base ---------- */
+.glass{
+  background:var(--glass-bg);
+  border:1px solid var(--glass-border);
+  border-radius:var(--radius-md);
+  backdrop-filter:blur(18px) saturate(160%);
+  -webkit-backdrop-filter:blur(18px) saturate(160%);
+  box-shadow:var(--glass-shadow);
+}
+
+/* ---------- Navbar ---------- */
+.navbar{
+  position:sticky; top:0; z-index:100;
+  border-radius:0; border-top:0; border-left:0; border-right:0;
+}
+.navbar-inner{
+  height:var(--nav-h);
+  max-width:1280px; margin:0 auto; padding:0 1.5rem;
+  display:flex; align-items:center; gap:1.5rem;
+}
+.brand{ display:flex; align-items:center; gap:.5rem; text-decoration:none; color:var(--text-1); font-weight:600; margin-right:auto; }
+.brand-icon{ font-size:1.5rem; }
+.brand-text strong{ background:linear-gradient(90deg,var(--accent-1),var(--accent-2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+
+.nav-links{ display:flex; gap:.25rem; }
+.nav-link{
+  background:none; border:none; padding:.6rem 1rem; border-radius:var(--radius-sm);
+  color:var(--text-2); font-weight:500; transition:background var(--transition),color var(--transition);
+}
+.nav-link:hover{ background:rgba(124,92,255,.12); color:var(--text-1); }
+.nav-link.active{ background:linear-gradient(135deg,var(--accent-1),var(--accent-2)); color:#fff; }
+
+.nav-actions{ display:flex; align-items:center; gap:.6rem; }
+.lang-select,.toolbar-select{
+  background:var(--glass-bg); color:var(--text-1); border:1px solid var(--glass-border);
+  border-radius:var(--radius-sm); padding:.5rem .6rem;
+}
+.icon-btn{
+  width:40px;height:40px; border-radius:50%; border:1px solid var(--glass-border);
+  background:var(--glass-bg); color:var(--text-1); display:flex; align-items:center; justify-content:center;
+  transition:transform var(--transition);
+}
+.icon-btn:hover{ transform:scale(1.08); }
+.nav-toggle{ display:none; }
+
+/* ---------- Buttons ---------- */
+.btn{
+  border:none; border-radius:var(--radius-sm); padding:.65rem 1.3rem; font-weight:600;
+  transition:transform var(--transition),box-shadow var(--transition),opacity var(--transition);
+  display:inline-flex; align-items:center; gap:.5rem;
+}
+.btn:hover{ transform:translateY(-2px); }
+.btn:active{ transform:translateY(0); }
+.btn-primary{ background:linear-gradient(135deg,var(--accent-1),var(--accent-2)); color:#fff; box-shadow:0 6px 20px rgba(124,92,255,.35); }
+.btn-ghost{ background:rgba(124,92,255,.12); color:var(--text-1); }
+.btn-danger{ background:var(--danger); color:#fff; }
+.btn-lg{ padding:.85rem 1.8rem; font-size:1.05rem; }
+.btn-block{ width:100%; justify-content:center; }
+.btn[disabled]{ opacity:.55; cursor:not-allowed; transform:none; }
+.link-btn{ background:none; border:none; color:var(--accent-1); font-weight:600; padding:0; text-decoration:underline; }
+
+.btn-spinner{
+  width:16px;height:16px; border-radius:50%;
+  border:2px solid rgba(255,255,255,.5); border-top-color:#fff;
+  animation:spin .7s linear infinite;
+}
+@keyframes spin{ to{ transform:rotate(360deg); } }
+
+/* ---------- Auth area / user menu ---------- */
+.auth-area{ display:flex; gap:.5rem; }
+.user-menu{ position:relative; }
+.user-menu-btn{
+  display:flex; align-items:center; gap:.5rem; background:var(--glass-bg);
+  border:1px solid var(--glass-border); border-radius:999px; padding:.35rem .8rem .35rem .35rem; color:var(--text-1);
+}
+.avatar{
+  width:32px;height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  background:linear-gradient(135deg,var(--accent-1),var(--accent-3)); color:#fff; font-weight:700;
+}
+.avatar-lg{ width:64px; height:64px; font-size:1.4rem; }
+.user-menu-dropdown{
+  position:absolute; right:0; top:calc(100% + 8px); width:200px; padding:.5rem;
+  display:flex; flex-direction:column; gap:.15rem; z-index:120;
+  background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:var(--radius-md);
+  backdrop-filter:blur(18px); box-shadow:var(--glass-shadow);
+}
+.user-menu-dropdown[hidden]{ display:none; }
+.user-menu-dropdown button{
+  background:none; border:none; text-align:left; padding:.55rem .6rem; border-radius:var(--radius-sm); color:var(--text-1);
+}
+.user-menu-dropdown button:hover{ background:rgba(124,92,255,.14); }
+
+/* ---------- Hero ---------- */
+.hero{ max-width:900px; margin:3.5rem auto 2rem; padding:0 1.5rem; text-align:center; }
+.eyebrow{ color:var(--accent-1); font-weight:700; letter-spacing:.03em; font-size:.85rem; text-transform:uppercase; }
+.hero h1{ font-size:clamp(2rem,5vw,3.2rem); }
+.gradient-text{ background:linear-gradient(90deg,var(--accent-1),var(--accent-2),var(--accent-3)); background-size:200% auto; -webkit-background-clip:text; background-clip:text; color:transparent; animation:shine 6s linear infinite; }
+@keyframes shine{ to{ background-position:200% center; } }
+.hero-sub{ max-width:640px; margin:0 auto 2rem; }
+
+/* ---------- Analyzer ---------- */
+.analyzer{ padding:1.2rem; margin-bottom:1.25rem; animation:fadeUp .5s ease both; }
+.analyzer-row{ display:flex; align-items:center; gap:.6rem; }
+.analyzer-icon{ font-size:1.25rem; }
+.analyzer-input{
+  flex:1; border:none; background:transparent; font-size:1rem; padding:.7rem .25rem; color:var(--text-1);
+}
+.analyzer-input:focus{ outline:none; }
+.analyzer-hint{ margin:.6rem 0 0; font-size:.82rem; text-align:left; }
+
+/* ---------- Dropzone ---------- */
+.dropzone{
+  padding:2rem 1.5rem; text-align:center; cursor:pointer; border:2px dashed var(--glass-border);
+  transition:border-color var(--transition),transform var(--transition);
+}
+.dropzone:hover,.dropzone.dragover{ border-color:var(--accent-1); transform:scale(1.01); }
+.dropzone-icon{ font-size:2rem; }
+
+@keyframes fadeUp{ from{ opacity:0; transform:translateY(16px);} to{ opacity:1; transform:translateY(0);} }
+
+/* ---------- Preview panel ---------- */
+.preview-panel{ max-width:900px; margin:1.5rem auto; padding:1.5rem; animation:fadeUp .4s ease both; }
+.preview-header{ display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; }
+.preview-body{ display:grid; grid-template-columns:280px 1fr; gap:1.5rem; }
+.preview-thumb-wrap{ position:relative; border-radius:var(--radius-sm); overflow:hidden; background:#000; aspect-ratio:16/9; }
+.preview-thumb{ width:100%; height:100%; object-fit:cover; }
+.duration-badge{ position:absolute; bottom:8px; right:8px; background:rgba(0,0,0,.7); color:#fff; font-size:.75rem; padding:.15rem .45rem; border-radius:6px; }
+.preview-author{ margin-top:-.3rem; }
+.meta-list{ display:flex; flex-direction:column; gap:.25rem; margin-bottom:1rem; font-size:.92rem; }
+.format-group{ margin-bottom:1rem; }
+.format-label{ display:block; font-weight:600; font-size:.85rem; margin-bottom:.4rem; color:var(--text-2); }
+.chip-group{ display:flex; flex-wrap:wrap; gap:.4rem; }
+.chip{
+  border:1px solid var(--glass-border); background:transparent; color:var(--text-1);
+  padding:.4rem .85rem; border-radius:999px; font-size:.85rem; transition:all var(--transition);
+}
+.chip:hover{ border-color:var(--accent-1); }
+.chip.active{ background:linear-gradient(135deg,var(--accent-1),var(--accent-2)); color:#fff; border-color:transparent; }
+.preview-actions{ display:flex; gap:.6rem; flex-wrap:wrap; margin-top:1rem; }
+
+/* ---------- Download manager ---------- */
+.download-manager{ max-width:900px; margin:1.5rem auto; padding:0 1.5rem; }
+.download-list{ display:flex; flex-direction:column; gap:.8rem; }
+.download-item{ padding:1rem 1.2rem; border-radius:var(--radius-md); }
+.download-item-top{ display:flex; justify-content:space-between; align-items:center; gap:.6rem; margin-bottom:.5rem; }
+.download-item-title{ font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.progress-track{ height:8px; border-radius:999px; background:rgba(124,92,255,.15); overflow:hidden; }
+.progress-fill{ height:100%; background:linear-gradient(90deg,var(--accent-1),var(--accent-2)); width:0%; transition:width .25s ease; }
+.download-item-stats{ display:flex; flex-wrap:wrap; gap:.9rem; font-size:.8rem; color:var(--text-2); margin-top:.45rem; }
+.download-item-actions{ display:flex; gap:.4rem; }
+.download-item-actions button{
+  width:32px;height:32px; border-radius:50%; border:1px solid var(--glass-border); background:transparent; color:var(--text-1);
+}
+.download-item.paused .progress-fill{ opacity:.5; }
+.download-item.error .progress-fill{ background:var(--danger); }
+.download-item.complete .progress-fill{ background:var(--success); }
+
+/* ---------- Sections / grids ---------- */
+.recent-section,#page-history,#page-favorites,#page-profile,#page-settings,#page-admin{
+  max-width:1280px; margin:0 auto; padding:1.5rem 1.5rem 3rem;
+}
+.section-heading{ display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; }
+.card-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:1.1rem; }
+.empty-state{ grid-column:1/-1; text-align:center; padding:2.5rem 1rem; color:var(--text-2); }
+
+.media-card{
+  border-radius:var(--radius-md); overflow:hidden; background:var(--glass-bg);
+  border:1px solid var(--glass-border); backdrop-filter:blur(14px);
+  transition:transform var(--transition),box-shadow var(--transition); display:flex; flex-direction:column;
+}
+.media-card:hover{ transform:translateY(-4px); box-shadow:var(--glass-shadow); }
+.media-card img{ width:100%; aspect-ratio:16/9; object-fit:cover; background:#000; }
+.media-card-body{ padding:.85rem .9rem; display:flex; flex-direction:column; gap:.3rem; flex:1; }
+.media-card-title{ font-weight:600; font-size:.95rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.media-card-meta{ font-size:.78rem; color:var(--text-2); display:flex; justify-content:space-between; }
+.media-card-actions{ display:flex; gap:.4rem; margin-top:.4rem; }
+.media-card-actions button{
+  flex:1; font-size:.78rem; padding:.4rem; border-radius:var(--radius-sm); border:1px solid var(--glass-border);
+  background:transparent; color:var(--text-1);
+}
+.media-card-actions button.fav-active{ color:var(--warning); border-color:var(--warning); }
+
+/* ---------- Toolbar ---------- */
+.toolbar{ display:flex; flex-wrap:wrap; gap:.6rem; padding:.8rem 1rem; margin-bottom:1.2rem; }
+.toolbar-input{
+  flex:1; min-width:180px; border:1px solid var(--glass-border); background:transparent; color:var(--text-1);
+  border-radius:var(--radius-sm); padding:.6rem .8rem;
+}
+
+/* ---------- Settings / Profile ---------- */
+.settings-card{ max-width:640px; padding:1.5rem; display:flex; flex-direction:column; gap:.9rem; }
+.settings-card label{ font-weight:600; font-size:.85rem; color:var(--text-2); }
+.settings-card input,.settings-card textarea{
+  border:1px solid var(--glass-border); background:transparent; color:var(--text-1);
+  border-radius:var(--radius-sm); padding:.6rem .8rem; width:100%;
+}
+.profile-avatar-row{ display:flex; align-items:center; gap:1rem; }
+.profile-avatar-row > div{ flex:1; }
+.settings-row{ display:flex; justify-content:space-between; align-items:center; gap:1rem; padding:.9rem 0; border-bottom:1px solid var(--glass-border); }
+.settings-row:last-child{ border-bottom:none; }
+.form-status{ font-size:.85rem; min-height:1.2em; }
+.form-status.error{ color:var(--danger); }
+.form-status.success{ color:var(--success); }
+
+.switch{ position:relative; display:inline-block; width:46px; height:26px; }
+.switch input{ opacity:0; width:0; height:0; }
+.switch-track{ position:absolute; inset:0; background:rgba(124,92,255,.25); border-radius:999px; transition:background var(--transition); }
+.switch-track::before{ content:""; position:absolute; width:20px; height:20px; left:3px; top:3px; background:#fff; border-radius:50%; transition:transform var(--transition); }
+.switch input:checked + .switch-track{ background:var(--accent-1); }
+.switch input:checked + .switch-track::before{ transform:translateX(20px); }
+
+/* ---------- Admin ---------- */
+.stat-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:1rem; margin-bottom:1.5rem; }
+.stat-card{ padding:1.2rem; display:flex; flex-direction:column; gap:.2rem; text-align:center; }
+.stat-value{ font-size:1.8rem; font-weight:700; background:linear-gradient(90deg,var(--accent-1),var(--accent-2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.stat-label{ font-size:.8rem; color:var(--text-2); }
+.admin-grid{ display:grid; grid-template-columns:1fr 1fr; gap:1.2rem; }
+.admin-panel{ padding:1.2rem; }
+.admin-panel-wide{ grid-column:1/-1; }
+.data-table{ width:100%; border-collapse:collapse; font-size:.85rem; }
+.data-table th,.data-table td{ text-align:left; padding:.55rem .5rem; border-bottom:1px solid var(--glass-border); }
+.data-table th{ color:var(--text-2); font-weight:600; }
+.badge{ padding:.15rem .55rem; border-radius:999px; font-size:.72rem; font-weight:600; }
+.badge.active{ background:rgba(34,197,94,.18); color:var(--success); }
+.badge.suspended{ background:rgba(239,68,68,.18); color:var(--danger); }
+.bar-chart{ display:flex; align-items:flex-end; gap:.6rem; height:160px; padding-top:1rem; }
+.bar{ flex:1; background:linear-gradient(180deg,var(--accent-1),var(--accent-2)); border-radius:6px 6px 0 0; position:relative; }
+.bar span{ position:absolute; bottom:-1.4rem; left:0; right:0; text-align:center; font-size:.7rem; color:var(--text-2); }
+
+/* ---------- Modals ---------- */
+.modal-backdrop{ position:fixed; inset:0; background:rgba(10,8,20,.5); z-index:200; backdrop-filter:blur(2px); }
+.modal{
+  position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+  width:min(420px,92vw); max-height:90vh; overflow:auto; padding:1.75rem; z-index:201;
+  display:flex; flex-direction:column; gap:.7rem; animation:pop .25s ease both;
+}
+@keyframes pop{ from{ opacity:0; transform:translate(-50%,-46%); } to{ opacity:1; transform:translate(-50%,-50%); } }
+.modal label{ font-size:.85rem; font-weight:600; color:var(--text-2); }
+.modal input{
+  border:1px solid var(--glass-border); background:transparent; color:var(--text-1);
+  border-radius:var(--radius-sm); padding:.65rem .8rem; width:100%;
+}
+.modal-close{ position:absolute; top:.9rem; right:.9rem; }
+.modal-switch{ text-align:center; font-size:.85rem; }
+.policy-body ul{ list-style:disc; padding-left:1.2rem; margin-bottom:.8rem; }
+.policy-body li{ margin-bottom:.4rem; color:var(--text-2); }
+
+/* ---------- Toasts ---------- */
+.toast-container{ position:fixed; bottom:1.25rem; right:1.25rem; display:flex; flex-direction:column; gap:.6rem; z-index:300; }
+.toast{
+  padding:.8rem 1.1rem; border-radius:var(--radius-sm); color:#fff; font-size:.88rem; min-width:220px;
+  box-shadow:0 8px 24px rgba(0,0,0,.25); animation:slideIn .25s ease both;
+}
+.toast.info{ background:#3b82f6; }
+.toast.success{ background:var(--success); }
+.toast.error{ background:var(--danger); }
+.toast.warning{ background:var(--warning); }
+@keyframes slideIn{ from{ opacity:0; transform:translateX(30px); } to{ opacity:1; transform:translateX(0); } }
+
+/* ---------- Footer ---------- */
+.site-footer{ text-align:center; padding:2rem 1rem; font-size:.8rem; color:var(--text-2); }
+
+/* ---------- Pages ---------- */
+.page{ display:none; animation:fadeUp .35s ease both; }
+.page.active{ display:block; }
+
+/* ---------- Misc ---------- */
+.muted{ color:var(--text-2); }
+.small{ font-size:.8rem; }
+
+/* ---------- Responsive ---------- */
+@media (max-width:900px){
+  .preview-body{ grid-template-columns:1fr; }
+  .admin-grid{ grid-template-columns:1fr; }
+}
+
+@media (max-width:768px){
+  .nav-links{
+    position:fixed; top:var(--nav-h); left:0; right:0; flex-direction:column; padding:1rem;
+    background:var(--glass-bg); backdrop-filter:blur(18px); border-bottom:1px solid var(--glass-border);
+    transform:translateY(-130%); transition:transform var(--transition); z-index:99;
+  }
+  .nav-links.open{ transform:translateY(0); }
+  .nav-toggle{ display:flex; }
+  .lang-select-wrap{ display:none; }
+  .user-name{ display:none; }
+  .auth-area .btn{ padding:.5rem .8rem; font-size:.85rem; }
+}
+
+@media (max-width:520px){
+  .navbar-inner{ padding:0 1rem; gap:.75rem; }
+  .brand-text{ display:none; }
+  .hero{ margin-top:2rem; }
+  .analyzer-row{ flex-wrap:wrap; }
+  .analyzer-btn{ width:100%; justify-content:center; }
+  .stat-grid{ grid-template-columns:repeat(2,1fr); }
+}
+
+</style>
+</head>
+<body>
+
+<!-- Skip link for keyboard / screen reader users -->
+<a class="skip-link" href="#main-content">Skip to main content</a>
+
+<!-- Animated gradient backdrop (decorative) -->
+<div class="bg-decor" aria-hidden="true">
+  <span class="orb orb-1"></span>
+  <span class="orb orb-2"></span>
+  <span class="orb orb-3"></span>
+</div>
+
+<!-- ======================= NAVBAR ======================= -->
+<header class="navbar glass" role="banner">
+  <div class="navbar-inner">
+    <a href="#home" class="brand" aria-label="Universal Media Manager home">
+      <span class="brand-icon" aria-hidden="true">🎬</span>
+      <span class="brand-text">Universal<strong>Media</strong>Manager</span>
+    </a>
+
+    <nav class="nav-links" id="nav-links" aria-label="Primary">
+      <button class="nav-link active" data-page="home" aria-current="page">Home</button>
+      <button class="nav-link" data-page="history">History</button>
+      <button class="nav-link" data-page="favorites">Favorites</button>
+      <button class="nav-link" data-page="settings">Settings</button>
+      <button class="nav-link admin-only hidden" data-page="admin">Admin</button>
+    </nav>
+
+    <div class="nav-actions">
+      <label class="lang-select-wrap" for="langSelect">
+        <span class="visually-hidden">Language</span>
+        <select id="langSelect" class="lang-select" aria-label="Select language">
+          <option value="en">EN</option>
+          <option value="es">ES</option>
+          <option value="fr">FR</option>
+          <option value="de">DE</option>
+        </select>
+      </label>
+
+      <button id="themeToggle" class="icon-btn" type="button" aria-label="Toggle dark mode" aria-pressed="false">
+        <span class="theme-icon" aria-hidden="true">🌙</span>
+      </button>
+
+      <div id="authArea" class="auth-area">
+        <button class="btn btn-ghost" id="loginBtn" type="button">Log In</button>
+        <button class="btn btn-primary" id="registerBtn" type="button">Sign Up</button>
+      </div>
+
+      <div id="userMenu" class="user-menu hidden">
+        <button class="user-menu-btn" id="userMenuBtn" type="button" aria-haspopup="true" aria-expanded="false">
+          <span class="avatar" id="userAvatar">U</span>
+          <span class="user-name" id="userNameLabel">User</span>
+          <span aria-hidden="true">▾</span>
+        </button>
+        <div class="user-menu-dropdown" id="userMenuDropdown" role="menu">
+          <button role="menuitem" data-page="profile">👤 Profile</button>
+          <button role="menuitem" data-page="settings">⚙️ Settings</button>
+          <button role="menuitem" class="admin-only hidden" data-page="admin">🛡️ Admin Panel</button>
+          <button role="menuitem" id="logoutBtn">🚪 Log Out</button>
+        </div>
+      </div>
+
+      <button id="navToggle" class="icon-btn nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-links">
+        <span aria-hidden="true">☰</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="main-content" role="main">
+
+<!-- ======================= HOME PAGE ======================= -->
+<section id="page-home" class="page active" aria-labelledby="hero-title">
+
+  <!-- Hero -->
+  <div class="hero">
+    <p class="eyebrow">Authorized Media Only • Own Files • Creative Commons • Public Domain</p>
+    <h1 id="hero-title">Manage your media,<br><span class="gradient-text">the right way.</span></h1>
+    <p class="hero-sub">
+      Analyze, preview, and download media exclusively from sources you're permitted to use —
+      your own uploads, Creative Commons &amp; public-domain libraries, and services with official,
+      user-authorized export APIs.
+    </p>
+
+    <!-- URL Analyzer -->
+    <form id="analyzeForm" class="analyzer glass" autocomplete="off">
+      <label for="mediaUrl" class="visually-hidden">Paste a media URL from an authorized source</label>
+      <div class="analyzer-row">
+        <span class="analyzer-icon" aria-hidden="true">🔗</span>
+        <input
+          type="url"
+          id="mediaUrl"
+          name="mediaUrl"
+          class="analyzer-input"
+          placeholder="Paste a media URL (e.g. Creative Commons / public domain / your own hosted file)"
+          aria-describedby="urlHint"
+          required
+        />
+        <button type="submit" class="btn btn-primary analyzer-btn" id="analyzeBtn">
+          <span class="btn-spinner hidden" aria-hidden="true"></span>
+          <span>Analyze</span>
+        </button>
+      </div>
+      <p id="urlHint" class="analyzer-hint">
+        We only process links from authorized sources. See our <button type="button" class="link-btn" id="policyLink">Content Policy</button>.
+      </p>
+    </form>
+
+    <!-- Drag & Drop / Upload -->
+    <div id="dropZone" class="dropzone glass" tabindex="0" role="button"
+         aria-label="Drag and drop a file here, or press Enter to browse and upload your own media file">
+      <input type="file" id="fileInput" class="visually-hidden" accept="video/*,audio/*,image/*" />
+      <div class="dropzone-content">
+        <span class="dropzone-icon" aria-hidden="true">📁</span>
+        <p><strong>Drag &amp; drop</strong> your own file here, or <button type="button" class="link-btn" id="browseBtn">browse</button></p>
+        <p class="muted small">Supports video, audio, and image files you own the rights to.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preview Panel (populated after Analyze) -->
+  <section id="previewPanel" class="preview-panel glass hidden" aria-live="polite" aria-labelledby="previewTitle">
+    <div class="preview-header">
+      <h2 id="previewTitle">Media Preview</h2>
+      <button class="icon-btn" id="closePreview" aria-label="Close preview">✕</button>
+    </div>
+    <div class="preview-body">
+      <div class="preview-thumb-wrap">
+        <img id="previewThumb" class="preview-thumb" loading="lazy" alt="" />
+        <span id="previewDuration" class="duration-badge">00:00</span>
+      </div>
+      <div class="preview-meta">
+        <h3 id="previewMediaTitle">—</h3>
+        <p class="preview-author">By <span id="previewAuthor">—</span></p>
+        <ul class="meta-list">
+          <li><strong>Duration:</strong> <span id="previewDurationText">—</span></li>
+          <li><strong>File size:</strong> <span id="previewSize">—</span></li>
+          <li><strong>Source license:</strong> <span id="previewLicense">—</span></li>
+        </ul>
+
+        <div class="format-group">
+          <span class="format-label" id="qualityLabel">Video Quality</span>
+          <div class="chip-group" role="radiogroup" aria-labelledby="qualityLabel" id="qualityChips">
+            <button class="chip active" role="radio" aria-checked="true" data-quality="original">Original</button>
+            <button class="chip" role="radio" aria-checked="false" data-quality="1080p">1080p</button>
+            <button class="chip" role="radio" aria-checked="false" data-quality="720p">720p</button>
+            <button class="chip" role="radio" aria-checked="false" data-quality="480p">480p</button>
+            <button class="chip" role="radio" aria-checked="false" data-quality="360p">360p</button>
+            <button class="chip" role="radio" aria-checked="false" data-quality="240p">240p</button>
+            <button class="chip" role="radio" aria-checked="false" data-quality="144p">144p</button>
+          </div>
+        </div>
+
+        <div class="format-group">
+          <span class="format-label" id="audioLabel">Audio Format</span>
+          <div class="chip-group" role="radiogroup" aria-labelledby="audioLabel" id="audioChips">
+            <button class="chip active" role="radio" aria-checked="true" data-audio="mp3">MP3</button>
+            <button class="chip" role="radio" aria-checked="false" data-audio="m4a">M4A</button>
+            <button class="chip" role="radio" aria-checked="false" data-audio="wav">WAV</button>
+            <button class="chip" role="radio" aria-checked="false" data-audio="aac">AAC</button>
+          </div>
+        </div>
+
+        <div class="preview-actions">
+          <button class="btn btn-primary btn-lg" id="startDownloadBtn">⬇ Download</button>
+          <button class="btn btn-ghost" id="favoriteFromPreview">☆ Save to Favorites</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Active Downloads -->
+  <section id="downloadManager" class="download-manager hidden" aria-live="polite" aria-labelledby="dmTitle">
+    <h2 id="dmTitle">Active Downloads</h2>
+    <ul id="downloadList" class="download-list"></ul>
+  </section>
+
+  <!-- Recently Downloaded -->
+  <section class="recent-section" aria-labelledby="recentTitle">
+    <div class="section-heading">
+      <h2 id="recentTitle">Recently Downloaded</h2>
+      <button class="link-btn" data-page="history">View all →</button>
+    </div>
+    <div id="recentGrid" class="card-grid">
+      <p class="empty-state">Nothing here yet — analyze a link or upload a file to get started.</p>
+    </div>
+  </section>
+</section>
+
+<!-- ======================= HISTORY PAGE ======================= -->
+<section id="page-history" class="page" aria-labelledby="historyTitle">
+  <div class="section-heading">
+    <h2 id="historyTitle">Download History</h2>
+  </div>
+
+  <div class="toolbar glass">
+    <label class="visually-hidden" for="historySearch">Search history</label>
+    <input type="search" id="historySearch" class="toolbar-input" placeholder="Search by title or author…" />
+
+    <label class="visually-hidden" for="historyFilter">Filter</label>
+    <select id="historyFilter" class="toolbar-select" aria-label="Filter downloads">
+      <option value="all">All types</option>
+      <option value="video">Video</option>
+      <option value="audio">Audio</option>
+      <option value="image">Image</option>
+    </select>
+
+    <label class="visually-hidden" for="historySort">Sort</label>
+    <select id="historySort" class="toolbar-select" aria-label="Sort downloads">
+      <option value="newest">Newest first</option>
+      <option value="oldest">Oldest first</option>
+      <option value="name">Name (A–Z)</option>
+      <option value="size">File size</option>
+    </select>
+  </div>
+
+  <div id="historyGrid" class="card-grid"></div>
+</section>
+
+<!-- ======================= FAVORITES PAGE ======================= -->
+<section id="page-favorites" class="page" aria-labelledby="favTitle">
+  <div class="section-heading"><h2 id="favTitle">Favorites</h2></div>
+  <div id="favoritesGrid" class="card-grid"></div>
+</section>
+
+<!-- ======================= PROFILE PAGE ======================= -->
+<section id="page-profile" class="page" aria-labelledby="profileTitle">
+  <div class="section-heading"><h2 id="profileTitle">Your Profile</h2></div>
+  <form id="profileForm" class="settings-card glass">
+    <div class="profile-avatar-row">
+      <span class="avatar avatar-lg" id="profileAvatarLg">U</span>
+      <div>
+        <label for="profileName">Display name</label>
+        <input type="text" id="profileName" maxlength="60" />
+      </div>
+    </div>
+    <label for="profileEmail">Email</label>
+    <input type="email" id="profileEmail" />
+    <label for="profileBio">Bio</label>
+    <textarea id="profileBio" maxlength="240" rows="3"></textarea>
+    <button type="submit" class="btn btn-primary">Save Profile</button>
+    <p class="form-status" id="profileStatus" role="status"></p>
+  </form>
+</section>
+
+<!-- ======================= SETTINGS PAGE ======================= -->
+<section id="page-settings" class="page" aria-labelledby="settingsTitle">
+  <div class="section-heading"><h2 id="settingsTitle">Settings</h2></div>
+  <div class="settings-card glass">
+    <div class="settings-row">
+      <div>
+        <h3>Appearance</h3>
+        <p class="muted small">Choose light or dark mode.</p>
+      </div>
+      <button class="btn btn-ghost" id="settingsThemeToggle">Toggle Theme</button>
+    </div>
+    <div class="settings-row">
+      <div>
+        <h3>Language</h3>
+        <p class="muted small">Interface language.</p>
+      </div>
+      <select id="settingsLang" class="toolbar-select" aria-label="Interface language">
+        <option value="en">English</option>
+        <option value="es">Español</option>
+        <option value="fr">Français</option>
+        <option value="de">Deutsch</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div>
+        <h3>Default download quality</h3>
+        <p class="muted small">Used when a preferred quality isn't specified.</p>
+      </div>
+      <select id="settingsQuality" class="toolbar-select" aria-label="Default quality">
+        <option>Original</option><option>1080p</option><option>720p</option>
+        <option>480p</option><option>360p</option><option>240p</option><option>144p</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div>
+        <h3>Notifications</h3>
+        <p class="muted small">Notify me when a download completes.</p>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="settingsNotify" checked />
+        <span class="switch-track" aria-hidden="true"></span>
+      </label>
+    </div>
+    <div class="settings-row">
+      <div>
+        <h3>Clear local data</h3>
+        <p class="muted small">Removes history, favorites, and preferences from this browser.</p>
+      </div>
+      <button class="btn btn-danger" id="clearDataBtn">Clear Data</button>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= ADMIN PAGE ======================= -->
+<section id="page-admin" class="page" aria-labelledby="adminTitle">
+  <div class="section-heading"><h2 id="adminTitle">Admin Dashboard</h2></div>
+
+  <div class="stat-grid">
+    <div class="stat-card glass"><span class="stat-value" id="statUsers">0</span><span class="stat-label">Users</span></div>
+    <div class="stat-card glass"><span class="stat-value" id="statDownloads">0</span><span class="stat-label">Downloads</span></div>
+    <div class="stat-card glass"><span class="stat-value" id="statStorage">0 GB</span><span class="stat-label">Storage Used</span></div>
+    <div class="stat-card glass"><span class="stat-value" id="statActive">0</span><span class="stat-label">Active Sessions</span></div>
+  </div>
+
+  <div class="admin-grid">
+    <div class="admin-panel glass">
+      <h3>User Management</h3>
+      <table class="data-table" id="userTable">
+        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="admin-panel glass">
+      <h3>Analytics</h3>
+      <div id="analyticsChart" class="bar-chart" aria-label="Downloads per day, last 7 days" role="img"></div>
+    </div>
+
+    <div class="admin-panel glass admin-panel-wide">
+      <h3>System Logs</h3>
+      <table class="data-table" id="logTable">
+        <thead><tr><th>Time</th><th>Level</th><th>Event</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ======================= AUTH MODALS ======================= -->
+<div id="modalBackdrop" class="modal-backdrop hidden"></div>
+
+<div id="loginModal" class="modal glass hidden" role="dialog" aria-modal="true" aria-labelledby="loginModalTitle">
+  <button class="icon-btn modal-close" data-close-modal aria-label="Close">✕</button>
+  <h2 id="loginModalTitle">Log In</h2>
+  <form id="loginForm" novalidate>
+    <label for="loginEmail">Email</label>
+    <input type="email" id="loginEmail" required autocomplete="email" />
+    <label for="loginPassword">Password</label>
+    <input type="password" id="loginPassword" required autocomplete="current-password" minlength="6" />
+    <p class="form-status" id="loginStatus" role="alert"></p>
+    <button type="submit" class="btn btn-primary btn-block">Log In</button>
+  </form>
+  <p class="modal-switch">No account? <button type="button" class="link-btn" id="switchToRegister">Sign up</button></p>
+  <p class="muted small">Demo tip: use <code>admin@umm.app</code> to preview the admin panel.</p>
+</div>
+
+<div id="registerModal" class="modal glass hidden" role="dialog" aria-modal="true" aria-labelledby="registerModalTitle">
+  <button class="icon-btn modal-close" data-close-modal aria-label="Close">✕</button>
+  <h2 id="registerModalTitle">Create Account</h2>
+  <form id="registerForm" novalidate>
+    <label for="registerName">Name</label>
+    <input type="text" id="registerName" required maxlength="60" autocomplete="name" />
+    <label for="registerEmail">Email</label>
+    <input type="email" id="registerEmail" required autocomplete="email" />
+    <label for="registerPassword">Password</label>
+    <input type="password" id="registerPassword" required minlength="6" autocomplete="new-password" />
+    <p class="form-status" id="registerStatus" role="alert"></p>
+    <button type="submit" class="btn btn-primary btn-block">Create Account</button>
+  </form>
+  <p class="modal-switch">Already have an account? <button type="button" class="link-btn" id="switchToLogin">Log in</button></p>
+</div>
+
+<div id="policyModal" class="modal glass hidden" role="dialog" aria-modal="true" aria-labelledby="policyModalTitle">
+  <button class="icon-btn modal-close" data-close-modal aria-label="Close">✕</button>
+  <h2 id="policyModalTitle">Content Policy</h2>
+  <div class="policy-body">
+    <p>Universal Media Manager only analyzes and downloads media from <strong>authorized sources</strong>:</p>
+    <ul>
+      <li>Files you upload and personally own or have rights to.</li>
+      <li>Creative Commons–licensed content, with license shown before download.</li>
+      <li>Public-domain media.</li>
+      <li>Platforms that provide an official, user-authorized export/download API.</li>
+    </ul>
+    <p>Links to platforms that don't permit downloading are rejected during analysis. See <code>js/analyze.js</code> for the integration point where authorized API calls belong.</p>
+  </div>
+</div>
+
+<!-- Toast notifications -->
+<div id="toastContainer" class="toast-container" aria-live="assertive" aria-atomic="true"></div>
+
+<footer class="site-footer">
+  <p>© <span id="year"></span> Universal Media Manager — Built for authorized media management only.</p>
+</footer>
+
+<!-- ======================= SCRIPTS ======================= -->
+<script>
+/* ============================================================
+   security.js
+   Client-side security helpers: input sanitization (XSS),
+   URL validation restricted to authorized-source patterns,
+   and a simple client-side rate limiter for UI actions.
+
+   NOTE: These are UI/UX safeguards. Real protection (XSS output
+   encoding, SQL injection prevention via parameterized queries,
+   server-side rate limiting) MUST also be enforced on the backend
+   — see server/middleware/security.js and server/routes/*.js.
+   ============================================================ */
+
+window.UMM = window.UMM || {};
+
+UMM.security = (function () {
+
+  /**
+   * Escape HTML special characters to prevent XSS when injecting
+   * user-controlled or remote strings into innerHTML.
+   */
+  function escapeHTML(str) {
+    if (str === null || str === undefined) return '';
+    return String(str).replace(/[&<>"'`=\/]/g, (ch) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;',
+      "'": '&#39;', '`': '&#96;', '=': '&#61;', '/': '&#47;'
+    }[ch]));
+  }
+
+  /**
+   * Strip anything that isn't plain text — used for free-text fields
+   * like bio/profile name before they're stored or rendered.
+   */
+  function sanitizeText(str, maxLen = 500) {
+    if (!str) return '';
+    const noTags = String(str).replace(/<[^>]*>/g, '');
+    return noTags.trim().slice(0, maxLen);
+  }
+
+  // Only these protocols are ever accepted.
+  const ALLOWED_PROTOCOLS = ['https:', 'http:'];
+
+  // Domains representing services/APIs that explicitly allow downloads.
+  // This whitelist is intentionally conservative — it is meant to be
+  // extended only with sources that provide an official, authorized
+  // export/download mechanism (Creative Commons repositories, public
+  // domain archives, the user's own storage/CDN, etc).
+  const AUTHORIZED_DOMAIN_HINTS = [
+    'creativecommons.org',
+    'archive.org',
+    'commons.wikimedia.org',
+    'pexels.com',
+    'pixabay.com',
+    'unsplash.com',
+    'freesound.org',
+    'localhost',
+    '127.0.0.1'
+  ];
+
+  /**
+   * Validate a URL string: must be well-formed, http(s) only, and
+   * not contain obvious script-injection payloads. Returns
+   * { valid: boolean, reason?: string, url?: URL }
+   */
+  function validateURL(input) {
+    if (!input || typeof input !== 'string') {
+      return { valid: false, reason: 'Please enter a URL.' };
+    }
+    const trimmed = input.trim();
+
+    // Reject anything that smells like a script/data URI injection.
+    if (/^(javascript|data|vbscript):/i.test(trimmed)) {
+      return { valid: false, reason: 'This URL scheme is not allowed.' };
+    }
+
+    let url;
+    try {
+      url = new URL(trimmed);
+    } catch (e) {
+      return { valid: false, reason: 'That doesn’t look like a valid URL.' };
+    }
+
+    if (!ALLOWED_PROTOCOLS.includes(url.protocol)) {
+      return { valid: false, reason: 'Only http/https links are supported.' };
+    }
+
+    return { valid: true, url };
+  }
+
+  /**
+   * Check whether a validated URL belongs to a recognized authorized
+   * source. In a production build, this should be backed by a
+   * server-side allowlist / official API check rather than a client
+   * hint list (which a user could bypass — enforcement must happen
+   * server-side too).
+   */
+  function isLikelyAuthorized(url) {
+    const host = url.hostname.replace(/^www\./, '');
+    return AUTHORIZED_DOMAIN_HINTS.some((d) => host === d || host.endsWith('.' + d));
+  }
+
+  /**
+   * Very small client-side rate limiter: limits how many times an
+   * action key can fire within a rolling time window. Real rate
+   * limiting must be enforced server-side (see server/middleware).
+   */
+  const buckets = new Map();
+  function rateLimit(key, { max = 5, windowMs = 10000 } = {}) {
+    const now = Date.now();
+    const bucket = buckets.get(key) || [];
+    const recent = bucket.filter((t) => now - t < windowMs);
+    recent.push(now);
+    buckets.set(key, recent);
+    return recent.length <= max;
+  }
+
+  return { escapeHTML, sanitizeText, validateURL, isLikelyAuthorized, rateLimit };
+})();
+
+</script>
+<script>
+/* ============================================================
+   i18n.js — minimal language-selection layer.
+   Swaps a small dictionary of UI strings. Extend STRINGS with more
+   keys/locales as needed; hook real translations in production.
+   ============================================================ */
+
+window.UMM = window.UMM || {};
+
+UMM.i18n = (function () {
+  const STRINGS = {
+    en: { heroTitle: 'Manage your media,', heroTitleAccent: 'the right way.', analyze: 'Analyze', login: 'Log In', signup: 'Sign Up' },
+    es: { heroTitle: 'Gestiona tus archivos,', heroTitleAccent: 'de la manera correcta.', analyze: 'Analizar', login: 'Iniciar sesión', signup: 'Registrarse' },
+    fr: { heroTitle: 'Gérez vos médias,', heroTitleAccent: 'de la bonne façon.', analyze: 'Analyser', login: 'Connexion', signup: 'S’inscrire' },
+    de: { heroTitle: 'Verwalte deine Medien,', heroTitleAccent: 'auf die richtige Art.', analyze: 'Analysieren', login: 'Anmelden', signup: 'Registrieren' }
+  };
+
+  let current = localStorage.getItem('umm_lang') || 'en';
+
+  function apply(lang) {
+    if (!STRINGS[lang]) lang = 'en';
+    current = lang;
+    localStorage.setItem('umm_lang', lang);
+    document.documentElement.lang = lang;
+
+    const t = STRINGS[lang];
+    const heroTitle = document.getElementById('hero-title');
+    if (heroTitle) {
+      heroTitle.innerHTML = `${UMM.security.escapeHTML(t.heroTitle)}<br><span class="gradient-text">${UMM.security.escapeHTML(t.heroTitleAccent)}</span>`;
+    }
+    const analyzeBtn = document.querySelector('#analyzeBtn span:last-child');
+    if (analyzeBtn) analyzeBtn.textContent = t.analyze;
+    const loginBtn = document.getElementById('loginBtn');
+    if (loginBtn) loginBtn.textContent = t.login;
+    const registerBtn = document.getElementById('registerBtn');
+    if (registerBtn) registerBtn.textContent = t.signup;
+
+    document.querySelectorAll('#langSelect, #settingsLang').forEach((sel) => { sel.value = lang; });
+  }
+
+  function init() {
+    apply(current);
+    document.getElementById('langSelect')?.addEventListener('change', (e) => apply(e.target.value));
+    document.getElementById('settingsLang')?.addEventListener('change', (e) => apply(e.target.value));
+  }
+
+  return { init, apply, get current() { return current; } };
+})();
+
+</script>
+<script>
+/* ============================================================
+   theme.js — dark / light mode toggle, persisted in localStorage,
+   respects prefers-color-scheme on first visit.
+   ============================================================ */
+
+window.UMM = window.UMM || {};
+
+UMM.theme = (function () {
+  function getStored() { return localStorage.getItem('umm_theme'); }
+
+  function systemPref() {
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+
+  function apply(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('umm_theme', theme);
+    const icon = document.querySelector('#themeToggle .theme-icon');
+    if (icon) icon.textContent = theme === 'dark' ? '☀️' : '🌙';
+    const toggleBtn = document.getElementById('themeToggle');
+    if (toggleBtn) toggleBtn.setAttribute('aria-pressed', String(theme === 'dark'));
+  }
+
+  function toggle() {
+    const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    apply(next);
+  }
+
+  function init() {
+    apply(getStored() || systemPref());
+    document.getElementById('themeToggle')?.addEventListener('click', toggle);
+    document.getElementById('settingsThemeToggle')?.addEventListener('click', toggle);
+  }
+
+  return { init, toggle, apply };
+})();
+
+</script>
+<script>
+/* ============================================================
+   auth.js — demo authentication layer.
+
+   This is a CLIENT-ONLY mock (users stored in localStorage, no
+   real password hashing) so the UI is fully interactive without a
+   backend. For production, replace calls below with requests to
+   server/routes/auth.js, which is stubbed for bcrypt password
+   hashing + JWT/session cookies + parameterized MySQL queries.
+   ============================================================ */
+
+window.UMM = window.UMM || {};
+
+UMM.auth = (function () {
+  const USERS_KEY = 'umm_users';
+  const SESSION_KEY = 'umm_session';
+
+  function loadUsers() {
+    try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; }
+    catch { return []; }
+  }
+  function saveUsers(users) { localStorage.setItem(USERS_KEY, JSON.stringify(users)); }
+
+  function currentUser() {
+    try { return JSON.parse(localStorage.getItem(SESSION_KEY)); }
+    catch { return null; }
+  }
+
+  function isAdmin() {
+    const u = currentUser();
+    return !!u && u.role === 'admin';
+  }
+
+  function register({ name, email, password }) {
+    name = UMM.security.sanitizeText(name, 60);
+    email = UMM.security.sanitizeText(email, 120).toLowerCase();
+
+    if (!name || !email || !password || password.length < 6) {
+      return { ok: false, error: 'Please fill all fields (password ≥ 6 characters).' };
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return { ok: false, error: 'Enter a valid email address.' };
+    }
+    if (!UMM.security.rateLimit('register', { max: 5, windowMs: 60000 })) {
+      return { ok: false, error: 'Too many attempts. Please wait a moment.' };
+    }
+
+    const users = loadUsers();
+    if (users.some((u) => u.email === email)) {
+      return { ok: false, error: 'An account with that email already exists.' };
+    }
+
+    // NOTE: demo only — never store plaintext passwords in production.
+    const role = email === 'admin@umm.app' ? 'admin' : 'user';
+    const user = { id: 'u_' + Date.now(), name, email, password, role, bio: '', createdAt: Date.now() };
+    users.push(user);
+    saveUsers(users);
+    setSession(user);
+    return { ok: true, user };
+  }
+
+  function login({ email, password }) {
+    email = UMM.security.sanitizeText(email, 120).toLowerCase();
+
+    if (!UMM.security.rateLimit('login', { max: 8, windowMs: 60000 })) {
+      return { ok: false, error: 'Too many login attempts. Please wait a moment.' };
+    }
+
+    // Convenience demo accounts, auto-provisioned on first use.
+    const users = loadUsers();
+    let user = users.find((u) => u.email === email);
+
+    if (!user && (email === 'admin@umm.app' || email === 'demo@umm.app') && password && password.length >= 6) {
+      user = {
+        id: 'u_' + Date.now(),
+        name: email === 'admin@umm.app' ? 'Admin' : 'Demo User',
+        email, password,
+        role: email === 'admin@umm.app' ? 'admin' : 'user',
+        bio: '', createdAt: Date.now()
+      };
+      users.push(user);
+      saveUsers(users);
+    }
+
+    if (!user || user.password !== password) {
+      return { ok: false, error: 'Invalid email or password.' };
+    }
+    setSession(user);
+    return { ok: true, user };
+  }
+
+  function setSession(user) {
+    const { password, ...safeUser } = user;
+    localStorage.setItem(SESSION_KEY, JSON.stringify(safeUser));
+  }
+
+  function updateProfile(fields) {
+    const session = currentUser();
+    if (!session) return { ok: false, error: 'Not logged in.' };
+    const users = loadUsers();
+    const idx = users.findIndex((u) => u.id === session.id);
+    if (idx === -1) return { ok: false, error: 'User not found.' };
+
+    users[idx].name = UMM.security.sanitizeText(fields.name, 60) || users[idx].name;
+    users[idx].bio = UMM.security.sanitizeText(fields.bio, 240);
+    saveUsers(users);
+    setSession(users[idx]);
+    return { ok: true, user: users[idx] };
+  }
+
+  function logout() { localStorage.removeItem(SESSION_KEY); }
+
+  return { register, login, logout, currentUser, isAdmin, updateProfile, loadUsers };
+})();
+
+</script>
+<script>
+/* ============================================================
+   upload.js — drag & drop + file-picker upload of the user's OWN
+   media files. Since these are files the user already owns, no
+   "authorization" check against a source allowlist is needed —
+   only basic type/size validation for a good UX.
+   ============================================================ */
+
+window.UMM = window.UMM || {};
+
+UMM.upload = (function () {
+  const MAX_SIZE_BYTES = 500 * 1024 * 1024; // 500MB demo cap
+  const ACCEPTED_TYPES = /^(video|audio|image)\//;
+
+  function humanSize(bytes) {
+    if (!bytes) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let i = 0, val = bytes;
+    while (val >= 1024 && i < units.length - 1) { val /= 1024; i++; }
+    return `${val.toFixed(val < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
+  }
+
+  function validateFile(file) {
+    if (!ACCEPTED_TYPES.test(file.type)) {
+      return { valid: false, reason: 'Unsupported file type. Please upload video, audio, or image files.' };
+    }
+    if (file.size > MAX_SIZE_BYTES) {
+      return { valid: false, reason: 'File is too large (max 500MB in this demo).' };
+    }
+    return { valid: true };
+  }
+
+  function handleFile(file) {
+    const check = validateFile(file);
+    if (!check.valid) {
+      UMM.app.toast(check.reason, 'error');
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    const type = file.type.split('/')[0];
+
+    UMM.app.toast(`“${file.name}” uploaded — you own this file, ready to manage.`, 'success');
+
+    UMM.analyze.showPreview({
+      title: file.name.replace(/\.[^.]+$/, ''),
+      author: UMM.auth.currentUser()?.name || 'You',
+      duration: type === 'video' || type === 'audio' ? '—' : null,
+      size: humanSize(file.size),
+      license: 'Owned by you (local upload)',
+      thumb: type === 'image' ? url : '',
+      type,
+      sourceUrl: url,
+      localFile: true
+    });
+  }
+
+  function init() {
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const browseBtn = document.getElementById('browseBtn');
+    if (!dropZone) return;
+
+    const openPicker = () => fileInput.click();
+    browseBtn?.addEventListener('click', openPicker);
+    dropZone.addEventListener('click', (e) => { if (e.target === dropZone || e.target.closest('.dropzone-content')) openPicker(); });
+    dropZone.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPicker(); }
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files[0]) handleFile(fileInput.files[0]);
+      fileInput.value = '';
+    });
+
+    ['dragenter', 'dragover'].forEach((evt) =>
+      dropZone.addEventListener(evt, (e) => { e.preventDefault(); dropZone.classList.add('dragover'); })
+    );
+    ['dragleave', 'drop'].forEach((evt) =>
+      dropZone.addEventListener(evt, (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); })
+    );
+    dropZone.addEventListener('drop', (e) => {
+      const file = e.dataTransfer.files[0];
+      if (file) handleFile(file);
+    });
+  }
+
+  return { init, humanSize, validateFile };
+})();
+
+</script>
+<script>
+/* ============================================================
+   analyze.js — URL analysis flow.
+
+   IMPORTANT — INTEGRATION POINT:
+   `fetchMediaMetadata(url)` below is a MOCK that returns sample
+   metadata after validating the URL is well-formed and from a
+   plausibly authorized source. It intentionally does NOT scrape or
+   contact arbitrary third-party media platforms.
+
+   To make this functional against real content, replace the mock
+   body with calls to an *authorized* source, for example:
+     - Your own backend (server/routes/analyze.js) which in turn
+       calls an official, permissioned API (Creative Commons search
+       API, Internet Archive API, Wikimedia Commons API, or a
+       platform's official OAuth-authorized export endpoint).
+     - A direct fetch to a public-domain/CC API that already permits
+       client-side, cross-origin requests.
+   Do NOT wire this to endpoints that scrape or bypass a platform's
+   terms of service.
+   ============================================================ */
+
+window.UMM = window.UMM || {};
+
+UMM.analyze = (function () {
+  let currentMedia = null;
+
+  const SAMPLE_LICENSES = ['Creative Commons BY 4.0', 'Public Domain (CC0)', 'Creative Commons BY-SA 4.0'];
+
+  // --- Mock "authorized" metadata fetch -------------------------------
+  async function fetchMediaMetadata(url) {
+    await new Promise((r) => setTimeout(r, 900)); // simulate network latency
+
+    const host = url.hostname.replace(/^www\./, '');
+    const id = Math.random().toString(36).slice(2, 8);
+
+    return {
+      title: `Sample media from ${host}`,
+      author: 'Authorized Creator',
+      duration: '03:24',
+      size: '128 MB',
+      license: SAMPLE_LICENSES[Math.floor(Math.random() * SAMPLE_LICENSES.length)],
+      thumb: `https://picsum.photos/seed/${id}/480/270`,
+      type: 'video',
+      sourceUrl: url.href,
+      localFile: false
+    };
+  }
+
+  function setActiveChip(groupEl, target) {
+    groupEl.querySelectorAll('.chip').forEach((chip) => {
+      const active = chip === target;
+      chip.classList.toggle('active', active);
+      chip.setAttribute('aria-checked', String(active));
+    });
+  }
+
+  function showPreview(media) {
+    currentMedia = media;
+    const panel = document.getElementById('previewPanel');
+    document.getElementById('previewThumb').src = media.thumb || '';
+    document.getElementById('previewThumb').alt = UMM.security.escapeHTML(media.title || 'Media thumbnail');
+    document.getElementById('previewDuration').textContent = media.duration || '—';
+    document.getElementById('previewMediaTitle').textContent = media.title || 'Untitled';
+    document.getElementById('previewAuthor').textContent = media.author || 'Unknown';
+    document.getElementById('previewDurationText').textContent = media.duration || '—';
+    document.getElementById('previewSize').textContent = media.size || '—';
+    document.getElementById('previewLicense').textContent = media.license || '—';
+
+    panel.classList.remove('hidden');
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function hidePreview() {
+    document.getElementById('previewPanel').classList.add('hidden');
+    currentMedia = null;
+  }
+
+  function init() {
+    const form = document.getElementById('analyzeForm');
+    const input = document.getElementById('mediaUrl');
+    const btn = document.getElementById('analyzeBtn');
+    const spinner = btn.querySelector('.btn-spinner');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      if (!UMM.security.rateLimit('analyze', { max: 10, windowMs: 60000 })) {
+        UMM.app.toast('Too many requests — please slow down.', 'warning');
+        return;
+      }
+
+      const check = UMM.security.validateURL(input.value);
+      if (!check.valid) {
+        UMM.app.toast(check.reason, 'error');
+        input.focus();
+        return;
+      }
+
+      if (!UMM.security.isLikelyAuthorized(check.url)) {
+        UMM.app.toast(
+          'This source isn’t on the authorized list yet. Only your own files, Creative Commons, public-domain, or officially-permitted sources are supported.',
+          'warning'
+        );
+        return;
+      }
+
+      btn.disabled = true;
+      spinner.classList.remove('hidden');
+      try {
+        const media = await fetchMediaMetadata(check.url);
+        showPreview(media);
+        UMM.app.toast('Media analyzed successfully.', 'success');
+      } catch (err) {
+        UMM.app.toast('Could not analyze this URL. Please try again.', 'error');
+      } finally {
+        btn.disabled = false;
+        spinner.classList.add('hidden');
+      }
+    });
+
+    document.getElementById('closePreview').addEventListener('click', hidePreview);
+
+    document.getElementById('qualityChips').addEventListener('click', (e) => {
+      const chip = e.target.closest('.chip');
+      if (chip) setActiveChip(e.currentTarget, chip);
+    });
+    document.getElementById('audioChips').addEventListener('click', (e) => {
+      const chip = e.target.closest('.chip');
+      if (chip) setActiveChip(e.currentTarget, chip);
+    });
+
+    document.getElementById('startDownloadBtn').addEventListener('click', () => {
+      if (!currentMedia) return;
+      const quality = document.querySelector('#qualityChips .chip.active')?.dataset.quality || 'original';
+      const audio = document.querySelector('#audioChips .chip.active')?.dataset.audio || 'mp3';
+      UMM.download.start({ ...currentMedia, quality, audio });
+    });
+
+    document.getElementById('favoriteFromPreview').addEventListener('click', () => {
+      if (!currentMedia) return;
+      UMM.history.addFavoriteFromMedia(currentMedia);
+      UMM.app.toast('Saved to favorites.', 'success');
+    });
+
+    document.getElementById('policyLink').addEventListener('click', () => UMM.app.openModal('policyModal'));
+  }
+
+  return { init, showPreview, hidePreview, get current() { return currentMedia; } };
+})();
+
+</script>
+<script>
+/* ============================================================
+   download.js — download manager UI: progress, speed, ETA,
+   pause/resume/cancel.
+
+   INTEGRATION POINT: `simulateChunk()` fabricates progress with a
+   timer. Replace the tick logic with real progress events from
+   either:
+     - The Fetch/Streams API reading a `ReadableStream` from an
+       authorized, CORS-enabled download URL, tracking bytes read
+       vs `content-length`.
+     - A backend proxy (server/routes/download.js) that streams
+       from an official API and reports progress over
+       Server-Sent Events / WebSocket.
+   ============================================================ */
+
+window.UMM = window.UMM || {};
+
+UMM.download = (function () {
+  const active = new Map(); // id -> state
+
+  function fmtSpeed(bytesPerSec) {
+    return UMM.upload.humanSize(bytesPerSec) + '/s';
+  }
+  function fmtEta(seconds) {
+    if (!isFinite(seconds) || seconds < 0) return '—';
+    const m = Math.floor(seconds / 60), s = Math.round(seconds % 60);
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  }
+
+  function render() {
+    const manager = document.getElementById('downloadManager');
+    const list = document.getElementById('downloadList');
+    if (active.size === 0) { manager.classList.add('hidden'); list.innerHTML = ''; return; }
+    manager.classList.remove('hidden');
+
+    list.innerHTML = '';
+    active.forEach((d) => {
+      const li = document.createElement('li');
+      li.className = `download-item glass ${d.status}`;
+      li.innerHTML = `
+        <div class="download-item-top">
+          <span class="download-item-title">${UMM.security.escapeHTML(d.title)}</span>
+          <div class="download-item-actions">
+            ${d.status === 'downloading' ? `<button data-act="pause" aria-label="Pause download">⏸</button>` : ''}
+            ${d.status === 'paused' ? `<button data-act="resume" aria-label="Resume download">▶</button>` : ''}
+            ${d.status !== 'complete' ? `<button data-act="cancel" aria-label="Cancel download">✕</button>` : ''}
+          </div>
+        </div>
+        <div class="progress-track"><div class="progress-fill" style="width:${d.progress}%"></div></div>
+        <div class="download-item-stats">
+          <span>${d.progress.toFixed(0)}%</span>
+          <span>${d.status === 'downloading' ? fmtSpeed(d.speed) : d.status === 'complete' ? 'Done' : d.status === 'paused' ? 'Paused' : 'Cancelled'}</span>
+          <span>${d.status === 'downloading' ? 'ETA ' + fmtEta(d.eta) : ''}</span>
+        </div>`;
+
+      li.querySelector('[data-act="pause"]')?.addEventListener('click', () => pause(d.id));
+      li.querySelector('[data-act="resume"]')?.addEventListener('click', () => resume(d.id));
+      li.querySelector('[data-act="cancel"]')?.addEventListener('click', () => cancel(d.id));
+      list.appendChild(li);
+    });
+  }
+
+  function tick(id) {
+    const d = active.get(id);
+    if (!d || d.status !== 'downloading') return;
+
+    const chunk = 4 + Math.random() * 10; // % progress per tick (simulated)
+    d.progress = Math.min(100, d.progress + chunk);
+    d.speed = (2 + Math.random() * 6) * 1024 * 1024; // simulated 2-8 MB/s
+    const remainingPct = 100 - d.progress;
+    d.eta = d.speed > 0 ? (remainingPct / 100) * (d.totalBytesEstimate / d.speed) : 0;
+
+    if (d.progress >= 100) {
+      d.status = 'complete';
+      d.progress = 100;
+      render();
+      UMM.app.toast(`“${d.title}” finished downloading.`, 'success');
+      UMM.history.addEntry(d);
+      setTimeout(() => { active.delete(id); render(); }, 2500);
+      return;
+    }
+
+    render();
+    d.timer = setTimeout(() => tick(id), 600);
+  }
+
+  function start(media) {
+    const id = 'dl_' + Date.now() + Math.random().toString(36).slice(2, 6);
+    const sizeBytes = 80 * 1024 * 1024 + Math.random() * 300 * 1024 * 1024;
+    const state = {
+      id,
+      title: media.title,
+      author: media.author,
+      thumb: media.thumb,
+      license: media.license,
+      type: media.type,
+      quality: media.quality,
+      audio: media.audio,
+      size: UMM.upload.humanSize(sizeBytes),
+      totalBytesEstimate: sizeBytes,
+      progress: 0,
+      speed: 0,
+      eta: Infinity,
+      status: 'downloading',
+      timer: null,
+      startedAt: Date.now()
+    };
+    active.set(id, state);
+    render();
+    UMM.app.toast(`Started download: “${media.title}”.`, 'info');
+    tick(id);
+  }
+
+  function pause(id) {
+    const d = active.get(id);
+    if (!d) return;
+    d.status = 'paused';
+    clearTimeout(d.timer);
+    render();
+  }
+
+  function resume(id) {
+    const d = active.get(id);
+    if (!d) return;
+    d.status = 'downloading';
+    render();
+    tick(id);
+  }
+
+  function cancel(id) {
+    const d = active.get(id);
+    if (!d) return;
+    clearTimeout(d.timer);
+    d.status = 'cancelled';
+    render();
+    setTimeout(() => { active.delete(id); render(); }, 1200);
+  }
+
+  return { start, pause, resume, cancel };
+})();
+
+</script>
+<script>
+/* ============================================================
+   history.js — download history + favorites, with search/filter/sort.
+   Persisted in localStorage for the demo; swap for API calls to a
+   real backend (server/routes) + MySQL table `downloads` (see
+   server/schema.sql) in production.
+   ============================================================ */
+
+window.UMM = window.UMM || {};
+
+UMM.history = (function () {
+  const HISTORY_KEY = 'umm_history';
+  const FAVORITES_KEY = 'umm_favorites';
+
+  function load(key) { try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; } }
+  function save(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+
+  function addEntry(d) {
+    const items = load(HISTORY_KEY);
+    items.unshift({
+      id: d.id, title: d.title, author: d.author, thumb: d.thumb,
+      license: d.license, type: d.type || 'video', size: d.size,
+      quality: d.quality, audio: d.audio, downloadedAt: Date.now()
+    });
+    save(HISTORY_KEY, items.slice(0, 200));
+    renderRecent();
+    renderHistory();
+  }
+
+  function addFavoriteFromMedia(media) {
+    const favs = load(FAVORITES_KEY);
+    const id = media.id || 'fav_' + Date.now();
+    if (favs.some((f) => f.title === media.title && f.author === media.author)) return;
+    favs.unshift({ id, title: media.title, author: media.author, thumb: media.thumb, license: media.license, type: media.type || 'video', size: media.size, savedAt: Date.now() });
+    save(FAVORITES_KEY, favs);
+    renderFavorites();
+  }
+
+  function toggleFavoriteFromHistoryItem(item) {
+    const favs = load(FAVORITES_KEY);
+    const idx = favs.findIndex((f) => f.title === item.title && f.author === item.author);
+    if (idx >= 0) { favs.splice(idx, 1); } else {
+      favs.unshift({ id: 'fav_' + Date.now(), title: item.title, author: item.author, thumb: item.thumb, license: item.license, type: item.type, size: item.size, savedAt: Date.now() });
+    }
+    save(FAVORITES_KEY, favs);
+    renderFavorites();
+    renderHistory();
+    renderRecent();
+  }
+
+  function isFavorite(item) {
+    return load(FAVORITES_KEY).some((f) => f.title === item.title && f.author === item.author);
+  }
+
+  function card(item, { showRemove = false } = {}) {
+    const esc = UMM.security.escapeHTML;
+    const favActive = isFavorite(item);
+    const div = document.createElement('div');
+    div.className = 'media-card';
+    div.innerHTML = `
+      <img src="${esc(item.thumb || 'https://picsum.photos/seed/' + esc(item.id) + '/400/225')}" alt="" loading="lazy" />
+      <div class="media-card-body">
+        <span class="media-card-title" title="${esc(item.title)}">${esc(item.title)}</span>
+        <div class="media-card-meta"><span>${esc(item.author || 'Unknown')}</span><span>${esc(item.size || '')}</span></div>
+        <div class="media-card-meta"><span>${esc(item.license || '')}</span></div>
+        <div class="media-card-actions">
+          <button data-act="fav" class="${favActive ? 'fav-active' : ''}">${favActive ? '★ Saved' : '☆ Favorite'}</button>
+          ${showRemove ? `<button data-act="remove">Remove</button>` : ''}
+        </div>
+      </div>`;
+    div.querySelector('[data-act="fav"]').addEventListener('click', () => toggleFavoriteFromHistoryItem(item));
+    div.querySelector('[data-act="remove"]')?.addEventListener('click', () => {
+      save(FAVORITES_KEY, load(FAVORITES_KEY).filter((f) => f.id !== item.id));
+      renderFavorites();
+    });
+    return div;
+  }
+
+  function renderRecent() {
+    const grid = document.getElementById('recentGrid');
+    if (!grid) return;
+    const items = load(HISTORY_KEY).slice(0, 6);
+    grid.innerHTML = '';
+    if (items.length === 0) {
+      grid.innerHTML = '<p class="empty-state">Nothing here yet — analyze a link or upload a file to get started.</p>';
+      return;
+    }
+    items.forEach((item) => grid.appendChild(card(item)));
+  }
+
+  function renderHistory() {
+    const grid = document.getElementById('historyGrid');
+    if (!grid) return;
+    const search = (document.getElementById('historySearch')?.value || '').toLowerCase();
+    const filter = document.getElementById('historyFilter')?.value || 'all';
+    const sort = document.getElementById('historySort')?.value || 'newest';
+
+    let items = load(HISTORY_KEY);
+    if (search) items = items.filter((i) => i.title.toLowerCase().includes(search) || (i.author || '').toLowerCase().includes(search));
+    if (filter !== 'all') items = items.filter((i) => i.type === filter);
+
+    items = [...items].sort((a, b) => {
+      if (sort === 'newest') return b.downloadedAt - a.downloadedAt;
+      if (sort === 'oldest') return a.downloadedAt - b.downloadedAt;
+      if (sort === 'name') return a.title.localeCompare(b.title);
+      if (sort === 'size') return (parseFloat(b.size) || 0) - (parseFloat(a.size) || 0);
+      return 0;
+    });
+
+    grid.innerHTML = '';
+    if (items.length === 0) {
+      grid.innerHTML = '<p class="empty-state">No downloads match your search/filter.</p>';
+      return;
+    }
+    items.forEach((item) => grid.appendChild(card(item)));
+  }
+
+  function renderFavorites() {
+    const grid = document.getElementById('favoritesGrid');
+    if (!grid) return;
+    const items = load(FAVORITES_KEY);
+    grid.innerHTML = '';
+    if (items.length === 0) {
+      grid.innerHTML = '<p class="empty-state">No favorites yet — save media from the preview panel or history.</p>';
+      return;
+    }
+    items.forEach((item) => grid.appendChild(card(item, { showRemove: true })));
+  }
+
+  function clearAll() {
+    localStorage.removeItem(HISTORY_KEY);
+    localStorage.removeItem(FAVORITES_KEY);
+    renderRecent(); renderHistory(); renderFavorites();
+  }
+
+  function init() {
+    renderRecent(); renderHistory(); renderFavorites();
+    ['historySearch', 'historyFilter', 'historySort'].forEach((id) => {
+      document.getElementById(id)?.addEventListener('input', renderHistory);
+      document.getElementById(id)?.addEventListener('change', renderHistory);
+    });
+  }
+
+  return { init, addEntry, addFavoriteFromMedia, renderRecent, renderHistory, renderFavorites, clearAll };
+})();
+
+</script>
+<script>
+/* ============================================================
+   admin.js — admin dashboard: user management, analytics, logs.
+   Demo data is derived from localStorage (registered users +
+   history) plus fabricated log entries. Wire to
+   server/routes/admin.js + MySQL for a real deployment.
+   ============================================================ */
+
+window.UMM = window.UMM || {};
+
+UMM.admin = (function () {
+  function seedLogsIfNeeded() {
+    if (localStorage.getItem('umm_logs')) return;
+    const events = [
+      ['INFO', 'Server started'],
+      ['INFO', 'Rate limiter initialized'],
+      ['WARN', 'Rejected analyze request: unauthorized domain'],
+      ['INFO', 'New user registered'],
+      ['ERROR', 'Download stream timeout (simulated)'],
+      ['INFO', 'Admin dashboard viewed']
+    ];
+    const logs = events.map(([level, event], i) => ({
+      time: Date.now() - i * 3600_000,
+      level, event
+    }));
+    localStorage.setItem('umm_logs', JSON.stringify(logs));
+  }
+
+  function renderStats() {
+    const users = UMM.auth.loadUsers();
+    const history = JSON.parse(localStorage.getItem('umm_history') || '[]');
+    document.getElementById('statUsers').textContent = users.length;
+    document.getElementById('statDownloads').textContent = history.length;
+    const gb = history.reduce((sum, h) => sum + (parseFloat(h.size) || 0), 0) / 1024;
+    document.getElementById('statStorage').textContent = gb > 0 ? gb.toFixed(2) + ' GB' : '0 GB';
+    document.getElementById('statActive').textContent = UMM.auth.currentUser() ? 1 : 0;
+  }
+
+  function renderUsers() {
+    const tbody = document.querySelector('#userTable tbody');
+    const esc = UMM.security.escapeHTML;
+    const users = UMM.auth.loadUsers();
+    tbody.innerHTML = users.length
+      ? users.map((u) => `
+        <tr>
+          <td>${esc(u.name)}</td>
+          <td>${esc(u.email)}</td>
+          <td>${esc(u.role)}</td>
+          <td><span class="badge active">Active</span></td>
+          <td><button class="link-btn" data-suspend="${esc(u.id)}">Suspend</button></td>
+        </tr>`).join('')
+      : `<tr><td colspan="5">No registered users yet.</td></tr>`;
+
+    tbody.querySelectorAll('[data-suspend]').forEach((btn) => {
+      btn.addEventListener('click', () => UMM.app.toast('User suspension requires a backend (demo UI only).', 'info'));
+    });
+  }
+
+  function renderAnalytics() {
+    const container = document.getElementById('analyticsChart');
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const history = JSON.parse(localStorage.getItem('umm_history') || '[]');
+    const counts = days.map((_, i) => history.filter((h) => new Date(h.downloadedAt).getDay() === i).length || Math.floor(Math.random() * 4));
+    const max = Math.max(1, ...counts);
+    container.innerHTML = counts.map((c, i) => `<div class="bar" style="height:${(c / max) * 100}%"><span>${days[i]}</span></div>`).join('');
+  }
+
+  function renderLogs() {
+    seedLogsIfNeeded();
+    const tbody = document.querySelector('#logTable tbody');
+    const esc = UMM.security.escapeHTML;
+    const logs = JSON.parse(localStorage.getItem('umm_logs') || '[]');
+    tbody.innerHTML = logs.map((l) => `
+      <tr>
+        <td>${new Date(l.time).toLocaleString()}</td>
+        <td>${esc(l.level)}</td>
+        <td>${esc(l.event)}</td>
+      </tr>`).join('');
+  }
+
+  function renderAll() {
+    renderStats(); renderUsers(); renderAnalytics(); renderLogs();
+  }
+
+  return { renderAll };
+})();
+
+</script>
+<script>
+/* ============================================================
+   app.js — application shell: navigation, modals, toasts, and
+   wiring auth state to the UI. Runs after all other modules load.
+   ============================================================ */
+
+window.UMM = window.UMM || {};
+
+UMM.app = (function () {
+
+  // ---------------- Toasts ----------------
+  function toast(message, type = 'info', timeout = 4000) {
+    const container = document.getElementById('toastContainer');
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    el.textContent = message;
+    container.appendChild(el);
+    setTimeout(() => el.remove(), timeout);
+  }
+
+  // ---------------- Page navigation ----------------
+  function goToPage(page) {
+    document.querySelectorAll('.page').forEach((p) => p.classList.remove('active'));
+    document.getElementById(`page-${page}`)?.classList.add('active');
+    document.querySelectorAll('.nav-link').forEach((btn) => {
+      const active = btn.dataset.page === page;
+      btn.classList.toggle('active', active);
+      if (active) btn.setAttribute('aria-current', 'page'); else btn.removeAttribute('aria-current');
+    });
+
+    if (page === 'admin') {
+      if (!UMM.auth.isAdmin()) { toast('Admin access only.', 'error'); goToPage('home'); return; }
+      UMM.admin.renderAll();
+    }
+    if (page === 'history') UMM.history.renderHistory();
+    if (page === 'favorites') UMM.history.renderFavorites();
+    if (page === 'profile') fillProfileForm();
+
+    document.getElementById('nav-links')?.classList.remove('open');
+    document.getElementById('navToggle')?.setAttribute('aria-expanded', 'false');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function initNav() {
+    document.querySelectorAll('[data-page]').forEach((el) => {
+      el.addEventListener('click', () => goToPage(el.dataset.page));
+    });
+    document.getElementById('navToggle')?.addEventListener('click', () => {
+      const nav = document.getElementById('nav-links');
+      const open = nav.classList.toggle('open');
+      document.getElementById('navToggle').setAttribute('aria-expanded', String(open));
+    });
+  }
+
+  // ---------------- Modals ----------------
+  function openModal(id) {
+    document.getElementById('modalBackdrop').classList.remove('hidden');
+    document.querySelectorAll('.modal').forEach((m) => m.classList.add('hidden'));
+    const modal = document.getElementById(id);
+    modal.classList.remove('hidden');
+    modal.querySelector('input, button')?.focus();
+  }
+  function closeModals() {
+    document.getElementById('modalBackdrop').classList.add('hidden');
+    document.querySelectorAll('.modal').forEach((m) => m.classList.add('hidden'));
+  }
+
+  function initModals() {
+    document.getElementById('loginBtn')?.addEventListener('click', () => openModal('loginModal'));
+    document.getElementById('registerBtn')?.addEventListener('click', () => openModal('registerModal'));
+    document.getElementById('switchToRegister')?.addEventListener('click', () => openModal('registerModal'));
+    document.getElementById('switchToLogin')?.addEventListener('click', () => openModal('loginModal'));
+    document.getElementById('modalBackdrop')?.addEventListener('click', closeModals);
+    document.querySelectorAll('[data-close-modal]').forEach((btn) => btn.addEventListener('click', closeModals));
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModals(); });
+  }
+
+  // ---------------- Auth UI ----------------
+  function refreshAuthUI() {
+    const user = UMM.auth.currentUser();
+    const authArea = document.getElementById('authArea');
+    const userMenu = document.getElementById('userMenu');
+    const adminLinks = document.querySelectorAll('.admin-only');
+
+    if (user) {
+      authArea.classList.add('hidden');
+      userMenu.classList.remove('hidden');
+      document.getElementById('userAvatar').textContent = (user.name || 'U').charAt(0).toUpperCase();
+      document.getElementById('userNameLabel').textContent = user.name;
+      adminLinks.forEach((el) => el.classList.toggle('hidden', user.role !== 'admin'));
+    } else {
+      authArea.classList.remove('hidden');
+      userMenu.classList.add('hidden');
+      adminLinks.forEach((el) => el.classList.add('hidden'));
+    }
+  }
+
+  function fillProfileForm() {
+    const user = UMM.auth.currentUser();
+    if (!user) { goToPage('home'); openModal('loginModal'); return; }
+    document.getElementById('profileName').value = user.name || '';
+    document.getElementById('profileEmail').value = user.email || '';
+    document.getElementById('profileBio').value = user.bio || '';
+    document.getElementById('profileAvatarLg').textContent = (user.name || 'U').charAt(0).toUpperCase();
+  }
+
+  function initAuthForms() {
+    document.getElementById('loginForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const res = UMM.auth.login({
+        email: document.getElementById('loginEmail').value,
+        password: document.getElementById('loginPassword').value
+      });
+      const status = document.getElementById('loginStatus');
+      if (res.ok) {
+        status.textContent = ''; status.className = 'form-status';
+        closeModals(); refreshAuthUI();
+        toast(`Welcome back, ${res.user.name}.`, 'success');
+      } else {
+        status.textContent = res.error; status.className = 'form-status error';
+      }
+    });
+
+    document.getElementById('registerForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const res = UMM.auth.register({
+        name: document.getElementById('registerName').value,
+        email: document.getElementById('registerEmail').value,
+        password: document.getElementById('registerPassword').value
+      });
+      const status = document.getElementById('registerStatus');
+      if (res.ok) {
+        status.textContent = ''; status.className = 'form-status';
+        closeModals(); refreshAuthUI();
+        toast(`Account created — welcome, ${res.user.name}!`, 'success');
+      } else {
+        status.textContent = res.error; status.className = 'form-status error';
+      }
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      UMM.auth.logout();
+      refreshAuthUI();
+      toast('Logged out.', 'info');
+      goToPage('home');
+    });
+
+    document.getElementById('userMenuBtn').addEventListener('click', () => {
+      const dd = document.getElementById('userMenuDropdown');
+      const open = dd.classList.toggle('hidden');
+      document.getElementById('userMenuBtn').setAttribute('aria-expanded', String(!open));
+    });
+    document.addEventListener('click', (e) => {
+      const menu = document.getElementById('userMenu');
+      if (menu && !menu.contains(e.target)) document.getElementById('userMenuDropdown')?.classList.add('hidden');
+    });
+
+    document.getElementById('profileForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const res = UMM.auth.updateProfile({
+        name: document.getElementById('profileName').value,
+        bio: document.getElementById('profileBio').value
+      });
+      const status = document.getElementById('profileStatus');
+      if (res.ok) {
+        status.textContent = 'Profile saved.'; status.className = 'form-status success';
+        refreshAuthUI();
+      } else {
+        status.textContent = res.error; status.className = 'form-status error';
+      }
+    });
+  }
+
+  function initSettings() {
+    document.getElementById('clearDataBtn')?.addEventListener('click', () => {
+      if (confirm('Clear all local history, favorites, and preferences?')) {
+        UMM.history.clearAll();
+        toast('Local data cleared.', 'success');
+      }
+    });
+  }
+
+  function init() {
+    document.getElementById('year').textContent = new Date().getFullYear();
+    initNav();
+    initModals();
+    initAuthForms();
+    initSettings();
+    refreshAuthUI();
+
+    UMM.theme.init();
+    UMM.i18n.init();
+    UMM.upload.init();
+    UMM.analyze.init();
+    UMM.history.init();
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+
+  return { toast, goToPage, openModal, closeModals, refreshAuthUI };
+})();
+
+</script>
+</body>
+</html>
